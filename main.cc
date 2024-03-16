@@ -11,7 +11,7 @@ int main(int argc, char **argv) {
   // allocate L1
   tt::tt_metal::InterleavedBufferConfig l1_config{
     .device=device,
-    .size=0x2000,
+    .size=0x2000,  // actually *120
     .page_size=0x2000,
     .buffer_type = tt_metal::BufferType::L1
   };
@@ -20,8 +20,10 @@ int main(int argc, char **argv) {
   // allocate dram
   tt_metal::InterleavedBufferConfig dram_config{
     .device=device,
-    .size=N*N*2,
-    .page_size=N*N*2,
+    //.size=N*N*2,
+    .size=0x1000,
+    .page_size=0x1000,
+    //.page_size=N*N*2,
     .buffer_type = tt_metal::BufferType::DRAM
   };
   std::shared_ptr<tt::tt_metal::Buffer> src0_dram_buffer = CreateBuffer(dram_config);
@@ -32,6 +34,19 @@ int main(int argc, char **argv) {
   printf("%lu %lu\n", src0_dram_buffer->noc_coordinates().x, src0_dram_buffer->noc_coordinates().y);
   printf("%lu %lu\n", src1_dram_buffer->noc_coordinates().x, src1_dram_buffer->noc_coordinates().y);
   printf("%lu %lu\n", dst_dram_buffer->noc_coordinates().x, dst_dram_buffer->noc_coordinates().y);
+
+  {
+    std::vector<uint32_t> input_vec;
+    for (int i = 0; i < 0x400; i++) input_vec.push_back(13);
+    EnqueueWriteBuffer(cq, src0_dram_buffer, input_vec, false);
+  }
+
+  {
+    std::vector<uint32_t> input_vec;
+    for (int i = 0; i < 0x400; i++) input_vec.push_back(7);
+    EnqueueWriteBuffer(cq, src1_dram_buffer, input_vec, false);
+  }
+
 
   // build kernel
   Program program = CreateProgram();
@@ -51,6 +66,11 @@ int main(int argc, char **argv) {
   // run kernel
   EnqueueProgram(cq, program, false);
   Finish(cq);
+
+  // read output
+  std::vector<uint32_t> result_vec;
+  EnqueueReadBuffer(cq, dst_dram_buffer, result_vec, true);
+  printf("result: %d\n", result_vec[0]);
 
   assert(CloseDevice(device));
 }

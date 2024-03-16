@@ -1,1 +1,40 @@
 Tenstorrent example from twitch
+
+Grayskull has 120 cores in a grid.
+
+See https://private-user-images.githubusercontent.com/3885633/313425522-6ea0cefc-6109-4579-8470-7a620f45b314.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MTA2MjI3MzQsIm5iZiI6MTcxMDYyMjQzNCwicGF0aCI6Ii8zODg1NjMzLzMxMzQyNTUyMi02ZWEwY2VmYy02MTA5LTQ1NzktODQ3MC03YTYyMGY0NWIzMTQucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI0MDMxNiUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNDAzMTZUMjA1MzU0WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9MzVkNWExZTIzYzFkMTNlMGIzZTk3M2JhZDEyMjQ4MDU4OTg0YWRkZGM1MmRiZTYyZTBlOWI1YjE5ZTk0ZDQ0ZiZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmYWN0b3JfaWQ9MCZrZXlfaWQ9MCZyZXBvX2lkPTAifQ.GzHj-U062blQf_DaBHeAUNkl89GeSwMx9cNJaqSeXQ0
+
+Each core has 5 RISC-V processors
+
+# TRISC0, TRISC1, TRISC2 = 3 compute kernels, UNPACK, MATH, PACK respectively
+# NCRISC (1) = read kernel (ex: reader_binary_diff_lengths)
+# BRISC (0) = write kernel (ex: writer_unary)
+
+The driver has two parts, kmd and umd (user mode driver)
+Debug with TT_METAL_LOGGER_LEVEL=1
+
+There's low level dispatch firmware running by default on all the cores.
+* brisc.cc, ncrisc.cc, trisc.cc
+
+There's a command queue (impl/dispatch/command_queue.cpp)
+* EnqueueProgram
+* EnqueueWriteBuffer
+* EnqueueReadBuffer
+
+The command queue is entirely software defined, there's a producer running on (7,11) and a consumer running on (1,11)
+
+You can manually dispatch kernels to specific cores (in the command queue even).
+Each core has 1MB of L1, and this can be used for either CircularBuffer or long standing L1
+
+# math
+"Grayskull supports full fp16/BFLOAT at 92 TFLOPs;"
+766 GFLOPS/core, 2048 muladds / clock. 1300 MHz
+block-based 8-bit floating point at 368 FLOPs.
+
+120*2048*1300 MFLOPS = 320 TFLOPS (fp8, half that for bf16)
+32x32 MAC = 32*32*2 = 2048
+
+bfloat16 accumulator in grayskull
+FP32 accumulator in wormhole
+
+See matmul.h. Math is custom RISC-V instructions (ckernel_ops.h)
